@@ -1,56 +1,53 @@
-version: '3'
+version: "3.8"
 
 services:
+  # MySQL database service
   db:
-    image: mysql:8.0
-    container_name: db
-    restart: unless-stopped
-    env_file: .env
-    environment:
-      - MYSQL_DATABASE=wordpress
+    image: mysql:latest
+    container_name: wordpress_db
     volumes:
-      - dbdata:/var/lib/mysql
-    command: '--default-authentication-plugin=mysql_native_password'
+      - db_data:/var/lib/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     networks:
-      - app-network
+      - wp_network
 
+  # PHP-FPM service for WordPress
   wordpress:
-    depends_on:
-      - db
-    image: wordpress:6.3-fpm-alpine
-    container_name: wordpress
-    restart: unless-stopped
-    env_file: .env
-    environment:
-      - WORDPRESS_DB_HOST=db:3306
-      - WORDPRESS_DB_USER=$MYSQL_USER
-      - WORDPRESS_DB_PASSWORD=$MYSQL_PASSWORD
-      - WORDPRESS_DB_NAME=wordpress
-      - ENTRYPOINT=/entrypoint.sh
+    image: wordpress:php8.4-fpm
+    container_name: wordpress_fpm
     volumes:
-      - wordpress:/var/www/html
+      - wordpress_data:/var/www/html
       - ./php/uploads.ini:/usr/local/etc/php/conf.d/uploads.ini
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_USER: ${MYSQL_USER}
+      WORDPRESS_DB_PASSWORD: ${MYSQL_PASSWORD}
+      WORDPRESS_DB_NAME: ${MYSQL_DATABASE}
     networks:
-      - app-network
+      - wp_network
 
-  web-server:
+  # Nginx service to serve WordPress
+  nginx:
+    image: nginx:latest
+    container_name: wordpress_nginx
     depends_on:
       - wordpress
-    image: nginx:1.25-alpine3.18-slim
-    container_name: web-server
-    restart: unless-stopped
-    ports:
-      - '80:80'
     volumes:
-      - wordpress:/var/www/html
+      - wordpress_data:/var/www/html
       - ./nginx:/etc/nginx/conf.d
+    ports:
+      - "80:80"
     networks:
-      - app-network
+      - wp_network
 
 volumes:
-  wordpress:
-  dbdata:
+  db_data:
+  wordpress_data:
 
 networks:
-  app-network:
+  wp_network:
     driver: bridge
